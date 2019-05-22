@@ -1,0 +1,157 @@
+---
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+      css: kable.css
+---
+
+<font face="Microsoft JhengHei">
+```{r echo=FALSE, out.width='100%'}
+knitr::include_graphics('./sys/001.jpeg')
+```
+<p align="right"><font size=3% face="Microsoft JhengHei">本教材輔助AI平台專用，如有任何問題請回報</font> </p>
+<p align="right"><font size=3% face="Microsoft JhengHei">資料倉儲科 李嘉桓 #2134</font></p>
+
+<p style="text-align: center;"> <font size=7% face="Microsoft JhengHei">  Classification Model 分類模型  </font>  </p>
+***
+
+#  <font  color="#bb3d00"> **使用說明** </font>
+* 此平台建議有初階R語言能力者使用，初學者建議使用國泰學習網[R與Python教育訓練](https://cathay.elearn.com.tw/dist/index.html#/learning-passport/incomplete-courses/course-info/9608351?mid=5952)完成初階課程。
+* 請將語法複製至本機Rstudio或server版上使用執行(不同環境kernel可能會有所不同)，將要執行的程式碼選取，按鍵盤Ctrl+Enter執行語法。
+* 每一台電腦的R版本不一樣，預設套件也不同，若跳出缺少套件的訊息，請自行安裝相關套件。
+* 建議將文件建立在R根目錄下開一個新資料夾當工作環境，可以使用語法getwd()確認工作路徑。
+* 本教材以 R version 3.4.3 進行示範。
+
+***
+***
+
+* 本章節會教學多個分類模型演算法，並使用 Step1 的 TrainData_Fill_ONE.rds 當訓練資料進行示範，若缺少該檔案的麻煩回去 Step1 執行。
+* 每個演算法接受的資料品質不一致，有的演算法能吃缺失值，有的要全部轉為 one-hot 編碼，實務運用時請自行根據演算法調整。
+
+# <font  color="#003d79"> 1. **資料載入**</font>
+
+```{r message=FALSE, warning=FALSE}
+# 讀取 rds 資料
+TrainData = readRDS("TrainData_Fill_ONE.rds")
+TestData = readRDS("TestData_Fill_ONE.rds")
+cat('訓練資料筆數：',dim(TrainData)[1],'訓練資料欄位數',dim(TrainData)[2])
+cat('測試資料筆數：',dim(TestData)[1],'訓練資料欄位數',dim(TestData)[2])
+# head(TrainData) # 可以觀察資料樣貌
+```
+
+* 因演算法眾多，建立儲存模型及結果的資料夾，若沒有則創一個。
+
+```{r warning=FALSE}
+if(!dir.exists(file.path(getwd(), "Model"))) dir.create(file.path(getwd(), "Model"))
+if(!dir.exists(file.path(getwd(), "Result"))) dir.create(file.path(getwd(), "Result"))
+```
+
+# <font  color="#003d79"> 2. **資料設定**</font>
+
+## 2.1 平行運算環境
+
+* R 一般為單核運算，為了提高運算效率，設定多核運行環境， doParallel 套件支援 caret 套件的所有的演算法，如果要使用其他套件請自行研究。
+* R 的 caret 類似 python 的 sklearn ，包含相當多機器學習的函數，功能非常強大，此教材將以 caret 為教學示範，詳細可以看 [caret](https://topepo.github.io/caret/index.html)。
+
+```{r message=FALSE, warning=FALSE}
+library('doParallel')
+# 建立多核運算環境
+cl<-makeCluster(4) # 自行根據硬體設備設定
+registerDoParallel(cl)
+# getDoParWorkers() # 確認目前使用core數
+#stopCluster(cl) # 不使用時可以用此語法關閉多核運行
+```
+
+## 2.2 資料集設定
+
+* 設定目標欄位 (Y變數) 及特徵欄位 (X變數)，以及辨識 key 欄位。
+
+```{r}
+TargetColumn = 'APPROVE'
+ID_column = 'NO_ID'
+
+Train_Y = TrainData[[TargetColumn]]
+Train_X = TrainData[,-which(colnames(TrainData) %in% c(TargetColumn,ID_column))]
+Test_Y = TestData[[TargetColumn]]
+Test_X = TestData[,-which(colnames(TestData) %in% c(TargetColumn,ID_column))]
+```
+
+* 建立交叉驗證 [Cross-validation](https://zh.wikipedia.org/wiki/%E4%BA%A4%E5%8F%89%E9%A9%97%E8%AD%89) 的切分數目，本教材以 **4-fold** 為例，即是以 **75%** 的 Training Data 進行訓練，以剩餘的 **25%** 的 Training Data  當 valid 來計算正確率。
+* fold 的數量取決於樣本大小、目標變數的正負樣本比等因素，範圍一般為 2~10，建議使用 3~5，請自行依實務情形調整。
+
+```{r message=FALSE, warning=FALSE}
+seed = 411
+set.seed(seed)
+nrounds = 4
+library('caret')
+folds = createFolds(factor(Train_Y), k = nrounds, list = FALSE)
+```
+
+## 2.3 載入模型評估套件
+
+* 載入模型評估相關套件，當作比較演算法優劣的依據。
+* 分類模型常用的還有 ROC AUC 來評估模型好壞，大多用於二元分類上，詳細可以看 [Receiver operating characteristic](https://en.wikipedia.org/wiki/Receiver_operating_characteristic)。
+
+```{r message=FALSE, warning=FALSE}
+library('MLmetrics')
+library('pROC')
+```
+
+
+# <font  color="#003d79"> 3. **模型訓練**</font>
+
+## 3.1 迴歸模型 Generalized linear model
+
+* 迴歸模型為最常見的預測模型，在分類問題上我們使用 Logistic Regression 處理。
+* Regression 的函數很多，以下用 glmnet 函數處理，此函數可自定義 alpha 及 lambda 值，若不設定則跟一般線性迴歸一樣，應用相當廣泛，詳細可以看 [glmnet](https://www.rdocumentation.org/packages/glmnet/versions/2.0-16/topics/glmnet)。
+* 本教材的目標函數只有兩個元素，為二元分類的問題，可以使用 binomial 方法處理，若目標元素超過 2 個，則要使用 multinomial 方法處理。
+
+```{r  eval=FALSE,warning=FALSE}
+dev_result =  rep(0, length(Train_Y)) # 儲存 valid 預測結果
+pred_te = rep(0, length(Train_Y)) # 儲存測試資料預測結果
+
+for (this.round in 1:nrounds){   
+  print(paste('處理第',this.round,'個 valid 訓練'))
+  
+  valid = c(1:length(Train_Y)) [folds == this.round] # valid 的 index
+  dev = c(1:length(Train_Y)) [folds != this.round] # dev 的 index
+  
+  model = train(x = Train_X[dev,], 
+                y = Train_Y[dev],
+                method = "glmnet",
+                family="binomial" # 根據實務自行更換
+  )
+  
+  saveRDS(model, file = paste0("./Model/model_glm_",this.round,".rda")) # 儲存模型檔
+  pred = predict(model,Train_X[valid,],type = "prob") # 預測結果以機率值表示
+  dev_result[valid] = pred[,2]
+  pred_test  = predict(model,Test_X,type = "prob")
+  pred_te = pred_te + pred_test[,2]
+}
+
+pred_test = pred_te/nrounds # 測試資料預測的機率取平均
+
+```
+
+* 模型預測評估
+
+```{r}
+
+# auc(as.integer(Train_Y)-1,dev_result)
+# auc(Test_Y_tmp,pred_test)
+
+
+
+```
+
+
+
+
+
+
+
+
+

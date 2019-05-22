@@ -1,0 +1,313 @@
+---
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+      css: kable.css
+---
+
+<font face="Microsoft JhengHei">
+```{r echo=FALSE, out.width='100%'}
+knitr::include_graphics('./sys/001.jpeg')
+```
+<p align="right"><font size=3% face="Microsoft JhengHei">本教材輔助AI平台專用，如有任何問題請回報</font> </p>
+<p align="right"><font size=3% face="Microsoft JhengHei">資料倉儲科 李嘉桓 #2134</font></p>
+
+<p style="text-align: center;"> <font size=7% face="Microsoft JhengHei">  Data Visualization 資料觀察  </font>  </p>
+***
+
+#  <font  color="#bb3d00"> **使用說明** </font>
+* 此平台建議有初階R語言能力者使用，初學者建議使用國泰學習網[R與Python教育訓練](https://cathay.elearn.com.tw/dist/index.html#/learning-passport/incomplete-courses/course-info/9608351?mid=5952)完成初階課程。
+* 請將語法複製至本機Rstudio或server版上使用執行(不同環境kernel可能會有所不同)，將要執行的程式碼選取，按鍵盤Ctrl+Enter執行語法。
+* 每一台電腦的R版本不一樣，預設套件也不同，若跳出缺少套件的訊息，請自行安裝相關套件。
+* 建議將文件建立在R根目錄下開一個新資料夾當工作環境，可以使用語法getwd()確認工作路徑。
+* 本教材以 R version 3.4.3 進行示範。
+
+***
+***
+
+# <font  color="#003d79"> 1. **資料載入**</font>
+
+* 根據 Step1 教材的內容，我們將資料存為 .rds 備用，本章節將針對資料進行資料探索及觀察。
+* 本章將以 TrainData 做為示範教學。
+
+```{r message=FALSE, warning=FALSE}
+# 1. 讀取原始csv資料
+# library("readr")
+# TrainData = read_csv("insurance_train.csv")
+# -----------------------
+# 2. 讀取 rds 資料
+TrainData = readRDS("TrainData.rds")
+print(paste('訓練資料筆數：',dim(TrainData)[1],'訓練資料欄位數',dim(TrainData)[2]))
+# head(TrainData) # 可以觀察資料樣貌
+```
+
+# <font  color="#003d79"> 2. **資料觀察說明**</font>
+
+<font size=3% face="Microsoft JhengHei" color=RED>  **資料科學家務必理解資料樣貌，勿將資料責任推給BU單位!!**  </font> 
+
+* 特徵資料分為**連續型**及**類別型**，兩種變數的結構不一樣，觀察及處理方式自然也不一樣，因此要先定義好數值欄位及類別欄位。
+* 資料探索時，務必逐一欄位探勘與分析，過程中也能排除異常資料，如年齡負數或超過200歲。
+* 當訓練資料與測試資料的分佈有差異時，則要注意資料初始定義及模型可能失準的問題。
+* 載入以下相關的套件，R 身為統計語言，繪圖的函數相當多樣，本教材以較美觀的 ggplot 套件進行示範：
+
+```{r warning=FALSE}
+library(ggplot2)
+```
+
+ggplot 是以繪圖文法理論為基礎，從資料底層開始串接的動作，繪製岀精美的統計圖語法：
+
+* 資料來源（data）：指定原始資料來源的 data frame。
+* 美學對應（aesthetic）：指定原始資料與圖形之間的對應關係，例如哪一個變數要當作 x 座標變數，而哪一個要當作 y 座標變數，還有資料繪圖時的樣式等。
+* 幾何圖案（geometry）：要用什麼幾何圖形繪製資料，例如點、線條、多邊形等。
+* 繪圖面（facet）：指定如何將資料分散在多張子圖形中繪製，以利互相比較。
+* 統計轉換（statistical transformation）：指定如何以將資料轉換為各種統計量，例如將連續型資料轉為離散型的類別。
+* 座標系統（coordinate system）：指定繪圖時所使用的座標系統，除了常見的笛卡兒直角座標系統，也可以使用極坐標或地圖投影（map projection）。
+* 主題（theme）：控制資料以外的繪圖組件，例如座標軸、說明文字等。
+
+<p style="text-align: center;"> <img src='ggplot.png' width="40%" >  </p>
+
+* 如果覺得 ggplot 的圖層語言太複雜，也有 qplot 的方法可以快速繪圖。
+* 為避免電腦誤判，通常由人工來定義資料的型態，以下針對不同類型欄位進行示範說明：
+
+# <font  color="#003d79"> 3. **目標欄位觀察**</font>
+
+* 目標欄位觀察有助於了解樣本分佈，及後續建模不平衡樣本的處理，以 APPROVE 進行示範：
+
+```{r warning=FALSE}
+canvass = ggplot(data=TrainData, aes(x= APPROVE, fill=APPROVE)) # 先準備畫布
+canvass +
+  # 以直方圖的圖形呈現資料
+  geom_histogram(stat="count") + 
+  # 加上標題內容，可加可不加
+  labs(title="應變數資料分佈",x="應變數",y="次數")
+```
+
+# <font  color="#003d79"> 4. **連續欄位觀察**</font>
+
+* 連續型欄位可以觀察統計量、資料分佈及與應變數的顯著關係，以 INSD_AGE 進行示範：
+
+## 4.1 統計量
+
+```{r}
+summary(TrainData$INSD_AGE)
+```
+
+## 4.2 直方圖
+
+```{r warning=FALSE}
+# qplot快速法
+qplot(x=INSD_AGE,                      
+      data=TrainData,      
+      fill = I("#ff7575"),
+      binwidth = 1  # 每1單位為一區隔
+)
+```
+
+## 4.3 合併直方圖
+
+```{r warning=FALSE}
+canvass = ggplot(data=TrainData, aes(x= INSD_AGE, fill=APPROVE)) # 先準備畫布
+canvass +
+  # 以直方圖的圖形呈現資料
+  geom_histogram(stat="count") 
+```
+
+## 4.4 獨立直方圖
+
+```{r warning=FALSE}
+canvass = ggplot(data=TrainData, aes(x= INSD_AGE, fill=APPROVE)) # 先準備畫布
+canvass +
+  # 以直方圖的圖形呈現資料
+  geom_histogram(stat="count") +
+  # 用facet()，分別畫直方圖
+  facet_grid(.~APPROVE)   # 因為 APPROVE 放在右邊，故圖片以水平方向呈現
+```
+
+## 4.5 合鬚圖
+
+```{r warning=FALSE}
+canvass = ggplot(data=TrainData, aes(x=APPROVE , y=INSD_AGE, fill=APPROVE)) # 先準備畫布
+canvass +
+  # 以合鬚圖的圖形呈現資料
+  geom_boxplot() 
+```
+
+## 4.6 機率密度圖
+
+```{r warning=FALSE}
+canvass = ggplot(data=TrainData, aes(x=INSD_AGE , fill=APPROVE)) # 先準備畫布
+canvass +
+  # 以pdf圖的圖形呈現資料
+  geom_density(alpha = 0.1) 
+```
+
+## 4.7 統計檢定
+
+* 針對分類問題的模型，檢定連續型變數通常使用 t-test 或 anova，也就是俗稱 **t檢定 及 變異數分析**，使用 t-test 或 anova 取決於目標變數的個數，如果 Y個數 >2 則使用 anova 分析。
+* 一般假設特徵變數為檢定依變數(Dependent variable)，必須滿足 **(1)連續變數 (2)來自母體隨機樣本  (3)母體為常態分佈**。  <font color="#00aeae">但此為資料探勘過程，僅做資料觀察不用嚴遵假設條件</font>，不然就什麼事都不用做了。
+* 檢定事件可以分為 **(1)相依事件 (2)獨立事件**，通常建模預測 **多為獨立事件處理**。
+* **相依事件**：一個母群體中得到的兩次差異，如減肥前後的體重分佈、補習前後的成績比較。
+* **獨立事件**：兩個獨立群體的差異，如男女生的理賠金額、不同風險等級的年齡分布。
+* 通常實務資料分佈較複雜，可用無母數檢定分析，但檢定力較弱且方法無一致性，統計檢定一般在大學為一整個學期的課程，有興趣可以自行深入研究。
+
+以本案為例使用獨立事件 t檢定，檢定不同事件的依變數分佈是否顯著差異，檢定又可以分為變異數相等與變異數不相等兩種情況。
+
+變異數相等：
+```{r warning=FALSE}
+# t.test(依變數~檢定事件, var.equal=TRUE)
+t.test(TrainData$INSD_AGE~TrainData$APPROVE, var.equal=TRUE)
+```
+
+變異數不相等：
+```{r warning=FALSE}
+# t.test(依變數~檢定事件, var.equal=FALSE)
+t.test(TrainData$INSD_AGE~TrainData$APPROVE, var.equal=FALSE)
+```
+
+由檢定結果可知，不同的 APPROVE 在 INSD_AGE 分佈有顯著差異 (p-value <0.05 有顯著差異)，若將 INSD_AGE 當成因子建模能有效提高預測能力。
+
+
+# <font  color="#003d79"> 5. **類別欄位觀察**</font>
+
+* 類別型欄位可以觀察資料分佈或散布狀況，也可以針對顯著關係進行檢定，以 COUNTRY 進行示範：
+
+## 5.1 資料統計
+
+```{r warning=FALSE}
+data.frame(summary(TrainData$COUNTRY))
+```
+
+## 5.2 直方圖
+
+
+```{r warning=FALSE}
+# qplot快速法
+qplot(x=COUNTRY,                      
+      data=TrainData,
+      fill = I("#ca8eff")
+)
+```
+
+## 5.3 合併直方圖
+
+```{r warning=FALSE}
+canvass = ggplot(data=TrainData, aes(x= COUNTRY, fill=APPROVE)) # 先準備畫布
+canvass +
+  # 以直方圖的圖形呈現資料
+  geom_histogram(stat="count") 
+```
+
+## 5.4 獨立直方圖
+
+```{r fig.height=5, fig.width=7, warning=FALSE}
+canvass = ggplot(data=TrainData, aes(x= APPROVE, fill=COUNTRY)) # 先準備畫布
+canvass +
+  # 以直方圖的圖形呈現資料
+  geom_histogram(stat="count") +
+  # 用facet()，分別畫直方圖
+  facet_grid(.~COUNTRY)   # 因為 COUNTRY 放在右邊，故圖片以水平方向呈現
+```
+
+## 5.5 統計檢定
+
+* 針對分類問題的模型，檢定類別型變數通常使用 chisq-test ，也就是俗稱**卡方檢定**。
+* 卡方檢定必須滿足 **(1)用於分析兩組類別變數 (2)樣本為獨立樣本 (3)樣本數目至少要為類別數目的五倍**。假設條件依然盡可能服從就好。
+
+```{r warning=FALSE}
+# chisq.test(類別資料1，類別資料2)
+chisq.test(TrainData$COUNTRY, TrainData$APPROVE)
+```
+
+由檢定結果可知，不同的 APPROVE 在 COUNTRY 分佈有顯著差異 (p-value <0.05 有顯著差異)，若將 COUNTRY 當成因子建模能有效提高預測能力。
+
+
+# <font  color="#003d79"> 6. **特徵之間關係觀察**</font>
+
+* 統計學上不同特徵之間的關係，稱為交互作用，有交互作用的因子會再進一步分析交互狀況，使用的方法有 anova、manova等。
+* 多變量分析一般在大學為一整個學期的課程，有興趣可以自行深入研究，以下僅以簡單案例作示範。
+
+## 6.1 單因子多變量分析
+
+* 觀察 FIRST_INSD_AGE 與 INSD_GENDER 之間的關係性，使用 anova 分析。
+
+```{r warning=FALSE}
+# 先定義觀察的特徵
+x1 = TrainData$FIRST_INSD_AGE
+x2 = factor(TrainData$INSD_GENDER) # 性別為類別變數，因此要用 factor表示
+# summary(aov(特徵1 ~ 特徵2))
+summary(aov( x1 ~ x2 ))
+```
+
+* 根據分析結果，FIRST_INSD_AGE 與 INSD_GENDER 有顯著性關係 (p-value <0.05 有顯著差異)。
+* 我們用畫圖觀察資料分佈，確實有明顯差異。
+
+```{r warning=FALSE}
+canvass = ggplot(data = data.frame(x1=x1,x2=x2), aes(x=x1 , fill=x2)) # 先準備畫布
+canvass +
+  # 以pdf圖的圖形呈現資料
+  geom_density(alpha = 0.1) 
+```
+
+
+## 6.2 多因子多變量分析
+
+* 如果除了 FIRST_INSD_AGE 與 INSD_GENDER ，如果想加入 COUNTRY 一同分析，則語法修改如下。
+
+```{r warning=FALSE}
+# 先定義觀察的特徵
+x1 = TrainData$FIRST_INSD_AGE
+x2 = factor(TrainData$INSD_GENDER) # 性別為類別變數，因此要用 factor表示
+x3 = factor(TrainData$COUNTRY) # 地區為類別變數，因此要用 factor表示
+# summary(aov(特徵1 ~ 特徵2 * 特徵3))
+summary(aov( x1 ~ x2 * x3))
+```
+
+* 根據分析結果，INSD_GENDER 與 COUNTRY 都分別對 FIRST_INSD_AGE 有顯著性關係 (p-value <0.05 有顯著差異)，但 INSD_GENDER 與 COUNTRY 彼此之間沒有交互作用，代表兩者是獨立變數，沒有交互影響關係存在。
+
+
+## 6.3 相關性矩陣
+
+* 相關矩陣可以幫助我們快速找到有相互影響的特徵，並進一步處理共線性問題。
+* 當今流行的 tree-base model 沒有處理共線性問題，因此相關性矩多為變數分析使用。
+
+```{r warning=FALSE}
+library(corrplot)
+# 隨便拿6個連續變數進行示範
+cor_list = c("INSD_AGE", "APC_AGE", "INSUR_RELATION", "PAY_FREQ", "FIRST_INSD_AGE", "N_REJECT")
+Train_cor = cor(TrainData[cor_list])
+corrplot(Train_cor) #  加上 method="number" 可以顯示數值
+```
+
+
+# <font  color="#003d79"> 7. **EDA**</font>
+
+* R本身有快速資料探勘的套件，可以加速 EDA 過程，以下介紹兩種常見用法。
+
+```{r eval=FALSE,message=FALSE, warning=FALSE, results='hide'}
+# 此方法會回傳每個變數的詳細統計
+library(Hmisc)
+describe(TrainData)
+```
+
+
+```{r eval=FALSE,message=FALSE, warning=FALSE, results='hide'}
+# 此方法會在目錄下產岀一個report.html，但若資料太大可能會執行過久失敗
+library(DataExplorer)
+DataExplorer::create_report(TrainData)
+```
+
+
+***
+
+**特徵觀察要花較多時間理解資料，切記特徵處理是資料科學重要的一環，務必要親自下去實驗，對資料保持懷疑態度，不要將資料問題推給BU單位，才能張顯資料科學家的價值。**
+
+***
+
+
+
+
+
+
